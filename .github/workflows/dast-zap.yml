@@ -37,10 +37,10 @@ jobs:
         env:
           INPUT_URL: ${{ github.event.inputs.target_url }}
         run: |
-          if [ "$INPUT_URL" != "" ]; then
-            echo "target_url=$INPUT_URL" >> $GITHUB_OUTPUT
+          if [ "${INPUT_URL}" != "" ]; then
+            echo "target_url=${INPUT_URL}" >> "${GITHUB_OUTPUT}"
           else
-            echo "target_url=https://staging.hustleriq.com" >> $GITHUB_OUTPUT
+            echo "target_url=https://staging.hustleriq.com" >> "${GITHUB_OUTPUT}"
           fi
 
       - name: Run ZAP Baseline Scan
@@ -80,8 +80,8 @@ jobs:
         run: |
           if [ -f report_json.json ]; then
             HIGH_RISK=$(jq -r '.site[0].alerts[] | select(.riskdesc | startswith("High")) | .riskdesc' report_json.json 2>/dev/null | wc -l || echo "0")
-            if [ "$HIGH_RISK" -gt "0" ]; then
-              echo "Found $HIGH_RISK high-risk security issues"
+            if [ "${HIGH_RISK}" -gt "0" ]; then
+              echo "Found ${HIGH_RISK} high-risk security issues"
               jq -r '.site[0].alerts[] | select(.riskdesc | startswith("High")) | "- \(.name): \(.desc)"' report_json.json
               exit 1
             else

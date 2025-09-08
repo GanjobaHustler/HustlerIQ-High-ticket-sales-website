@@ -97,7 +97,7 @@ jobs:
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
       - name: Run OSV Scanner
-        uses: google/osv-scanner-action@c0e8a1142dcb3ae443d26c8f6a2b774db9f6c6ea # v1.9.0
+        uses: google/osv-scanner-action@90b209d0ea55cea1da9fc0c4e65782cc6acb6e2e # v1.9.0
         with:
           scan-args: |-
             -r
@@ -153,8 +153,6 @@ jobs:
         uses: trufflesecurity/trufflehog@7f32919787f5b745dd2bc87fa92165782e869be2 # v3.82.6
         with:
           path: ./
-          base: main
-          head: HEAD
           extra_args: --debug --only-verified
 
   sbom:
