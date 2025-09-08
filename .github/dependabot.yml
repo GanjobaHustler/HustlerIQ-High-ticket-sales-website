@@ -1,43 +1,41 @@
 version: 2
 updates:
-  # Enable version updates for GitHub Actions
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "06:00"
-    open-pull-requests-limit: 10
-    reviewers:
-      - "GanjobaHustler"
-    assignees:
-      - "GanjobaHustler"
-    commit-message:
-      prefix: "chore(deps)"
-      include: "scope"
-    labels:
-      - "dependencies"
-      - "security"
-
   # Enable version updates for npm
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
-      time: "06:00"
+      time: "09:00"
     open-pull-requests-limit: 10
+    target-branch: "develop"
     reviewers:
       - "GanjobaHustler"
     assignees:
       - "GanjobaHustler"
     commit-message:
-      prefix: "chore(deps)"
+      prefix: "chore"
       include: "scope"
     labels:
       - "dependencies"
       - "security"
-    versioning-strategy: "increase"
-    allow:
-      - dependency-type: "direct"
-      - dependency-type: "indirect"
+
+  # Enable version updates for GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    target-branch: "develop"
+    reviewers:
+      - "GanjobaHustler"
+    assignees:
+      - "GanjobaHustler"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    labels:
+      - "github-actions"
+      - "security"

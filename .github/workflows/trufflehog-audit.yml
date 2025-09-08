@@ -1,0 +1,38 @@
+name: TruffleHog Secret Audit
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  trufflehog-audit:
+    name: TruffleHog Secret Audit
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        with:
+          egress-policy: audit
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+
+      - name: Checkout repository
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      - name: Run TruffleHog Secret Scan
+        uses: trufflesecurity/trufflehog@3f2ae8a9e8d84e89d63e3c0a81b09b0dc83f8cd7 # v3.63.2
+        with:
+          path: ./
+          base: main
+          head: HEAD
+          extra_args: --debug --only-verified
