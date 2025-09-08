@@ -1,0 +1,243 @@
+name: Security Baseline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 6 * * 1'  # Weekly on Monday at 6 AM UTC
+
+permissions: read-all
+
+jobs:
+  codeql:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        with:
+          egress-policy: audit
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            ghcr.io:443
+            objects.githubusercontent.com:443
+            raw.githubusercontent.com:443
+            uploads.github.com:443
+
+      - name: Checkout repository
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@e2b3eafc8d227b0241d48be5f425d47c2d750a13 # v3.26.10
+        with:
+          languages: javascript
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@e2b3eafc8d227b0241d48be5f425d47c2d750a13 # v3.26.10
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@e2b3eafc8d227b0241d48be5f425d47c2d750a13 # v3.26.10
+
+  semgrep:
+    name: Semgrep Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        with:
+          egress-policy: audit
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            semgrep.dev:443
+            registry.semgrep.dev:443
+
+      - name: Checkout repository
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      - name: Run Semgrep
+        uses: returntocorp/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d # v1.95.0
+        with:
+          config: >-
+            p/security-audit
+            p/owasp-top-ten
+            p/javascript
+          severity: HIGH
+        env:
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+
+  osv:
+    name: OSV Scanner (SCA)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        with:
+          egress-policy: audit
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            api.osv.dev:443
+
+      - name: Checkout repository
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      - name: Run OSV Scanner
+        uses: google/osv-scanner-action@90b209d0ea55cea1da9fc0c4e65782cc6acb6e2e # v1.9.0
+        with:
+          scan-args: |-
+            -r
+            --skip-git
+            .
+
+  gitleaks:
+    name: GitLeaks Secret Scanning
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        with:
+          egress-policy: audit
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+
+      - name: Checkout repository
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          fetch-depth: 0
+
+      - name: Run GitLeaks
+        uses: gitleaks/gitleaks-action@bf2dc8e55639c1e091e9b45970152e4313705814 # v2.3.6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  trufflehog-audit:
+    name: TruffleHog Audit (Non-blocking)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        with:
+          egress-policy: audit
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+
+      - name: Checkout repository
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          fetch-depth: 0
+
+      - name: TruffleHog OSS
+        uses: trufflesecurity/trufflehog@7f32919787f5b745dd2bc87fa92165782e869be2 # v3.82.6
+        with:
+          path: ./
+          extra_args: --debug --only-verified
+
+  sbom:
+    name: SBOM Generation
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      actions: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        with:
+          egress-policy: audit
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            objects.githubusercontent.com:443
+            raw.githubusercontent.com:443
+            uploads.github.com:443
+
+      - name: Checkout repository
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      - name: Generate SBOM (CycloneDX)
+        uses: anchore/sbom-action@d94f46e13c6c62f59525ac9a1e147a99dc0b9bf5 # v0.17.2
+        with:
+          format: cyclonedx-json
+          output-file: sbom-cyclonedx.json
+
+      - name: Generate SBOM (SPDX)
+        uses: anchore/sbom-action@d94f46e13c6c62f59525ac9a1e147a99dc0b9bf5 # v0.17.2
+        with:
+          format: spdx-json
+          output-file: sbom-spdx.json
+
+      - name: Upload SBOM artifacts
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: sbom-reports
+          path: |
+            sbom-*.json
+
+  actionlint:
+    name: Action Lint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        with:
+          egress-policy: audit
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+
+      - name: Checkout repository
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      - name: Run actionlint
+        uses: raven-actions/actionlint@0ecc78948d0f2638a712944e00ac7a986405c2cd # v2.0.0
+
+  actions-pin-enforcer:
+    name: Actions Pin Enforcer
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        with:
+          egress-policy: audit
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+
+      - name: Checkout repository
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      - name: Check Actions are pinned
+        run: |
+          echo "Checking that all GitHub Actions are pinned to specific SHAs..."
+          if grep -r "uses:.*@[^#]*$" .github/workflows/ | grep -v "# v"; then
+            echo "ERROR: Found unpinned actions. All actions must be pinned to specific SHAs."
+            exit 1
+          fi
+          echo "✅ All actions are properly pinned to SHAs"
