@@ -4,16 +4,14 @@ on:
   push:
     branches: [ main, develop ]
   pull_request:
-    branches: [ main ]
-    paths:
-      - '.github/workflows/**'
+    branches: [ main, develop ]
 
 permissions:
   contents: read
 
 jobs:
   actionlint:
-    name: Action Lint
+    name: ActionLint
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -25,27 +23,24 @@ jobs:
           allowed-endpoints: >
             github.com:443
             api.github.com:443
-            objects.githubusercontent.com:443
+            releases.githubusercontent.com:443
 
       - name: Checkout repository
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
-      - name: Run ActionLint
-        uses: raven-actions/actionlint@14dcc2b14df4ed1fde2bec08b2b5dd0a4699c94e # v1.0.2
-        with:
-          reporter: github-pr-review
-          level: error
-          filter_mode: nofilter
-
-      - name: Create ActionLint Summary
-        if: always()
+      - name: Download ActionLint
         run: |
-          echo "ActionLint validation completed at $(date)" > actionlint-report.txt
-          echo "Status: Analysis Complete" >> actionlint-report.txt
+          curl -sSfL https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz | tar xz
+          chmod +x actionlint
 
-      - name: Upload ActionLint Report
+      - name: Run ActionLint
+        run: |
+          ./actionlint -format '{{range $err := .}}::error file={{$err.Filepath}},line={{$err.Line}},col={{$err.Column}}::{{$err.Message}}%0A{{end}}'
+
+      - name: Upload ActionLint results
         uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
-        with:
-          name: actionlint-report
-          path: actionlint-report.txt
         if: always()
+        with:
+          name: actionlint-results
+          path: actionlint-results.txt
+          retention-days: 5
