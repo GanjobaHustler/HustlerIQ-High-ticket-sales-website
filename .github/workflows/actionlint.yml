@@ -1,0 +1,46 @@
+name: Action Lint
+
+on:
+  workflow_dispatch:  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+permissions:
+  contents: read
+
+jobs:
+  actionlint:
+    name: ActionLint
+    runs-on: ubuntu-latest
+  workflow_dispatch:    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        with:
+          egress-policy: audit
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            releases.githubusercontent.com:443
+
+      - name: Checkout repository
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      - name: Download ActionLint
+        run: |
+          curl -sSfL https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz | tar xz
+          chmod +x actionlint
+
+      - name: Run ActionLint
+        run: |
+          ./actionlint .github/workflows/*.yml
+
+      - name: Upload ActionLint results
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
+        if: always()
+        with:
+          name: actionlint-results
+          path: actionlint.log
+          retention-days: 5

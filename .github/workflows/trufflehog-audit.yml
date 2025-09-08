@@ -1,0 +1,49 @@
+name: TruffleHog Secret Audit
+
+on:
+  workflow_dispatch:  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+permissions:
+  contents: read
+
+jobs:
+  trufflehog-audit:
+    name: TruffleHog Audit
+    runs-on: ubuntu-latest
+  workflow_dispatch:    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        with:
+          egress-policy: audit
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            releases.githubusercontent.com:443
+
+      - name: Checkout repository
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          fetch-depth: 0
+
+      - name: Install TruffleHog
+        run: |
+          curl -sSfL https://github.com/trufflesecurity/trufflehog/releases/latest/download/trufflehog_linux_amd64.tar.gz | tar xz
+          chmod +x trufflehog
+
+      - name: Run TruffleHog Audit (Non-blocking)
+        run: |
+          ./trufflehog git file://. --only-verified --format json --output trufflehog-results.json || true
+        continue-on-error: true
+
+      - name: Upload Audit Results
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
+        if: always()
+        with:
+          name: trufflehog-audit-results
+          path: trufflehog-results.json
+          retention-days: 30

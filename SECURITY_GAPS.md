@@ -1,37 +1,42 @@
-# Security Capabilities Probe Results
+# Security Gaps and Limitations
 
-| Feature | Available? | Enabled? | Scope | Action Taken | Remediation |
-|---------|------------|----------|-------|--------------|-------------|
-| Secret Scanning + Push Protection | ✅ Yes | ✅ Enabled | Repo | Already active | N/A |
-| Private Vulnerability Reporting | ❌ No | ❌ N/A | Repo | None | Requires GitHub Pro/Team plan |
-| Merge Queue | ❌ No | ❌ N/A | User Account | None | Requires organization with GitHub Enterprise |
-| Code Scanning Defaults | ✅ Yes | ❌ Not set | Repo | Will enable | N/A |
-| Required Reviewers for Environments | ✅ Yes | ❌ Not configured | Repo | Will configure | N/A |
-| Enforce Signed Commits/Tags | ✅ Yes | ❌ Not configured | Repo | Will configure | N/A |
-| Require Code Owner Review | ✅ Yes | ❌ Not configured | Repo | Will configure | N/A |
-| Require Branches Up-to-Date | ✅ Yes | ❌ Not configured | Repo | Will configure | N/A |
-| Require Approval of Most Recent Push | ✅ Yes | ❌ Not configured | Repo | Will configure | N/A |
-| Restrict Who Can Dismiss Reviews | ✅ Yes | ❌ Not configured | Repo | Will configure | N/A |
+## Repository Plan/Permission Restrictions
 
-## Plan/Permission Gaps
+| Feature | Status | Limitation | Required Plan/Role |
+|---------|--------|------------|------------------|
+| Private Vulnerability Reporting | ❌ Not Available | Public repository limitation | Private repository or GitHub Enterprise |
+| Secret Scanning Non-Provider Patterns | ❌ Disabled | Advanced pattern detection | GitHub Advanced Security |
+| Secret Scanning Validity Checks | ❌ Disabled | Real-time secret validation | GitHub Advanced Security |
+| Merge Queue | ❓ Unknown | Repository scaling feature | GitHub Enterprise |
+| Environment Protection Rules | ❓ Unknown | Deployment environment controls | Repository admin access |
 
-### Private Vulnerability Reporting
-- **Status**: Not available on free tier
-- **API Response**: `"private_vulnerability_reporting_enabled": null`
-- **Required Plan**: GitHub Pro or Team
-- **Workaround**: Using public security policy and contact info
+## Code Scanning Configuration
 
-### Merge Queue
-- **Status**: Not available for user accounts
-- **Required**: Organization with GitHub Enterprise
-- **Workaround**: Implementing strict branch protection with required checks
+| Item | Current State | Gap Analysis |
+|------|---------------|-------------|
+| Default Setup | Not Configured | Using custom CodeQL workflow instead |
+| CodeQL Languages | JavaScript/TypeScript | Coverage appropriate for repository |
+| SARIF Upload | Multiple tools | No conflicts detected |
 
-### Organization-Level Features
-- **Status**: User account (not organization)
-- **Impact**: Cannot use team-based restrictions, organization security policies
-- **Workaround**: Using user-based restrictions where possible
+## API Access Limitations
 
-## Next Steps
-1. Enable all available security features at repository level
-2. Consider upgrading to GitHub Pro for enhanced security features
-3. Consider creating organization for team-based security controls
+```bash
+# Attempted API calls and responses:
+# gh api repos/:owner/:repo/vulnerability-alerts --method GET
+# Response: No explicit error - feature may not be available for public repos
+
+# gh api repos/:owner/:repo/merge-queue
+# Not tested - requires specific repository configuration
+```
+
+## Recommendations
+
+1. **Private Vulnerability Reporting**: Consider making critical repositories private to enable coordinated disclosure
+2. **Advanced Security Features**: Evaluate GitHub Advanced Security license for enhanced secret scanning
+3. **Environment Protection**: Configure deployment environments with required reviewers
+4. **Merge Queue**: Implement for high-traffic repositories to prevent merge conflicts
+
+---
+
+*Last Updated: $(date +%Y-%m-%d)*
+*Status: Initial assessment complete*
