@@ -1,149 +1,92 @@
-name: DAST ZAP
+name: "DAST with ZAP"
 
 on:
-  schedule:
-    - cron: '0 8 * * 1'  # Weekly on Monday at 8 AM UTC
   workflow_dispatch:
     inputs:
       target_url:
-        description: 'Target URL for DAST scanning'
+        description: 'Target URL for DAST scan'
         required: false
         default: 'https://staging.hustleriq.com'
+        type: string
+  schedule:
+    - cron: '0 2 * * 0'  # Weekly on Sunday at 2 AM
 
 permissions:
   contents: read
+  security-events: write
 
 jobs:
-  dast-zap:
-    name: ZAP DAST Scan
+  zap_scan:
+    name: "ZAP Baseline Scan"
     runs-on: ubuntu-latest
     permissions:
       contents: read
       security-events: write
+    
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
         with:
           egress-policy: audit
-          allowed-endpoints: >
-            github.com:443
-            api.github.com:443
-            staging.hustleriq.com:443
-            uploads.github.com:443
 
       - name: Checkout repository
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
 
-      - name: Set Target URL
+      - name: Set target URL
         id: target
+        env:
+          INPUT_URL: ${{ github.event.inputs.target_url }}
         run: |
-          if [ "${{ github.event.inputs.target_url }}" != "" ]; then
-            echo "target_url=${{ github.event.inputs.target_url }}" >> $GITHUB_OUTPUT
+          if [ "$INPUT_URL" != "" ]; then
+            echo "target_url=$INPUT_URL" >> $GITHUB_OUTPUT
           else
             echo "target_url=https://staging.hustleriq.com" >> $GITHUB_OUTPUT
           fi
 
-      - name: Create ZAP Configuration
-        run: |
-          cat > zap-config.yaml << 'EOL'
-          rules:
-            - id: 10038
-              name: "Content Security Policy (CSP) Header Not Set"
-              threshold: "HIGH"
-            - id: 10020
-              name: "X-Frame-Options Header"
-              threshold: "HIGH"
-            - id: 10021
-              name: "X-Content-Type-Options Header Missing"
-              threshold: "MEDIUM"
-          
-          scanners:
-            passive:
-              - id: 10015  # Incomplete or No Cache-control and Pragma HTTP Header Set
-              - id: 10017  # Cross-Domain JavaScript Source File Inclusion
-              - id: 10020  # X-Frame-Options Header
-              - id: 10021  # X-Content-Type-Options Header Missing
-              - id: 10038  # Content Security Policy (CSP) Header Not Set
-              - id: 10054  # Cookie Without SameSite Attribute
-              - id: 10063  # Permissions Policy Header Not Set
-            
-            active:
-              - id: 40012  # Cross Site Scripting (Reflected)
-              - id: 40014  # Cross Site Scripting (Persistent)
-              - id: 40016  # Cross Site Scripting (Persistent) - Prime
-              - id: 40017  # Cross Site Scripting (Persistent) - Spider
-              - id: 40018  # SQL Injection
-              - id: 40019  # SQL Injection - MySQL
-              - id: 40020  # SQL Injection - Hypersonic SQL
-              - id: 40021  # SQL Injection - Oracle
-              - id: 40022  # SQL Injection - PostgreSQL
-          EOL
-
-      - name: ZAP Baseline Scan
-        uses: zaproxy/action-baseline@7b71bba8943fb21e2c2fa58f5aef62b524ceb7c5 # v0.12.0
+      - name: Run ZAP Baseline Scan
+        uses: zaproxy/action-baseline@a6d84c7f3d0b0bb8bff9dfe7c98d0b2b57104ba7 # v0.13.0
         with:
           target: ${{ steps.target.outputs.target_url }}
-          rules_file_name: 'zap-config.yaml'
-          cmd_options: >
-            -a
-            -j
-            -m 10
-            -T 30
-            -z "-configFile /zap/wrk/zap-config.yaml"
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-a'
 
-      - name: Process ZAP Results
-        if: always()
+      - name: Generate ZAP Report
         run: |
-          # Filter only new HIGH severity issues
           if [ -f report_html.html ]; then
-            echo "ZAP scan completed. Processing results..."
-            
-            # Check for High severity findings
-            if grep -q "High.*Risk" report_html.html; then
-              echo "❌ HIGH severity vulnerabilities found!"
-              echo "Extracting High severity issues..."
-              grep -A 10 -B 2 "High.*Risk" report_html.html > high-severity-issues.txt || true
-              cat high-severity-issues.txt
-              
-              # Fail the build on new High severity issues
-              echo "DAST scan failed due to High severity vulnerabilities"
-              exit 1
-            else
-              echo "✅ No High severity vulnerabilities found"
-            fi
+            echo "ZAP scan completed successfully"
+            echo "Report available as artifact"
           else
             echo "No ZAP report generated"
           fi
 
-      - name: Upload ZAP Report
-        if: always()
+      - name: Upload ZAP Results
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        if: always()
         with:
-          name: zap-scan-report
+          name: zap-report
           path: |
             report_html.html
             report_json.json
-            high-severity-issues.txt
+          retention-days: 7
 
-      - name: Create DAST Summary
+      - name: ZAP to GitHub Security Tab
+        uses: github/codeql-action/upload-sarif@cf54159058a9d2c45ceae54b2a3d98b0a2b68aa9 # v3.28.0
         if: always()
-        run: |
-          echo "# DAST ZAP Scan Summary" > dast-summary.md
-          echo "- **Target**: ${{ steps.target.outputs.target_url }}" >> dast-summary.md
-          echo "- **Scan Time**: $(date)" >> dast-summary.md
-          echo "- **Rate Limited**: Yes (max 10 requests/minute)" >> dast-summary.md
-          echo "- **Authentication**: Configured per staging environment" >> dast-summary.md
-          echo "- **Policy**: Fail on new High severity issues only" >> dast-summary.md
-          
-          if [ -f report_html.html ]; then
-            echo "- **Status**: Scan completed" >> dast-summary.md
-          else
-            echo "- **Status**: Scan failed or incomplete" >> dast-summary.md
-          fi
-
-      - name: Upload DAST Summary
-        if: always()
-        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
-          name: dast-summary
-          path: dast-summary.md
+          sarif_file: report_json.json
+          category: 'DAST-ZAP'
+
+      - name: Fail on High Risk Issues
+        run: |
+          if [ -f report_json.json ]; then
+            HIGH_RISK=$(jq -r '.site[0].alerts[] | select(.riskdesc | startswith("High")) | .riskdesc' report_json.json 2>/dev/null | wc -l || echo "0")
+            if [ "$HIGH_RISK" -gt "0" ]; then
+              echo "Found $HIGH_RISK high-risk security issues"
+              jq -r '.site[0].alerts[] | select(.riskdesc | startswith("High")) | "- \(.name): \(.desc)"' report_json.json
+              exit 1
+            else
+              echo "No high-risk security issues found"
+            fi
+          else
+            echo "No ZAP report to analyze"
+          fi

@@ -97,7 +97,7 @@ jobs:
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
       - name: Run OSV Scanner
-        uses: google/osv-scanner-action@786e74f5f1f2973ad4f29ccda6c96ba2b4a4da7b # v1.9.0
+        uses: google/osv-scanner-action@c0e8a1142dcb3ae443d26c8f6a2b774db9f6c6ea # v1.9.0
         with:
           scan-args: |-
             -r
@@ -125,7 +125,7 @@ jobs:
           fetch-depth: 0
 
       - name: Run GitLeaks
-        uses: gitleaks/gitleaks-action@cb7149b0d57038c93e4e9ae7e10c8536c4ee737b # v2.3.6
+        uses: gitleaks/gitleaks-action@bf2dc8e55639c1e091e9b45970152e4313705814 # v2.3.6
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -150,7 +150,7 @@ jobs:
           fetch-depth: 0
 
       - name: TruffleHog OSS
-        uses: trufflesecurity/trufflehog@14be2ad33e5ee8b02dd30d47d7e26bc54bb3949c # v3.82.6
+        uses: trufflesecurity/trufflehog@7f32919787f5b745dd2bc87fa92165782e869be2 # v3.82.6
         with:
           path: ./
           base: main
@@ -216,7 +216,7 @@ jobs:
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
       - name: Run actionlint
-        uses: raven-actions/actionlint@c30ea0de6f0c22b961a2f7b3f86d93ac8ab8d78a # v2.0.0
+        uses: raven-actions/actionlint@0ecc78948d0f2638a712944e00ac7a986405c2cd # v2.0.0
 
   actions-pin-enforcer:
     name: Actions Pin Enforcer
