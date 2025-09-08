@@ -114,9 +114,9 @@ jobs:
         id: check-sarif
         run: |
           if [ -f osv-results.sarif ] && [ -s osv-results.sarif ] && grep -q '"results"' osv-results.sarif; then
-            echo "has-results=true" >> ""
+            echo "has-results=true" >> $GITHUB_OUTPUT
           else
-            echo "has-results=false" >> ""
+            echo "has-results=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Upload SARIF
