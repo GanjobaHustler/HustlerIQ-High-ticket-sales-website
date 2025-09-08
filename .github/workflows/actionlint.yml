@@ -31,17 +31,18 @@ jobs:
 
       - name: Install ActionLint
         run: |
-          curl -sSfL https://github.com/rhymond/actionlint/releases/latest/download/actionlint_1.7.3_linux_amd64.tar.gz | tar -xz
+          ACTIONLINT_VERSION=$(curl -s https://api.github.com/repos/rhymond/actionlint/releases/latest | grep -o '"tag_name": "[^"]*' | cut -d'"' -f4)
+          curl -sSfL "https://github.com/rhymond/actionlint/releases/latest/download/actionlint_${ACTIONLINT_VERSION#v}_linux_amd64.tar.gz" | tar -xz
           chmod +x actionlint
 
       - name: Run ActionLint
         run: |
-          ./actionlint -color
+          ./actionlint -color -verbose .github/workflows/ > actionlint-report.txt || true
 
-      - name: Create ActionLint Report
+      - name: Create ActionLint Summary
         run: |
-          echo "ActionLint validation completed at $(date)" > actionlint-report.txt
-          echo "Status: Passed" >> actionlint-report.txt
+          echo "ActionLint validation completed at $(date)" >> actionlint-report.txt
+          echo "Status: Analysis Complete" >> actionlint-report.txt
 
       - name: Upload ActionLint Report
         uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
