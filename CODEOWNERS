@@ -1,0 +1,29 @@
+# Global owners
+* @GanjobaHustler
+
+# Security-sensitive paths require security lead approval
+/payments/ @GanjobaHustler
+/src/payments/ @GanjobaHustler
+/auth/ @GanjobaHustler
+/src/auth/ @GanjobaHustler
+/config/ @GanjobaHustler
+/src/config/ @GanjobaHustler
+
+# GitHub configuration and workflows
+/.github/ @GanjobaHustler
+/.github/workflows/ @GanjobaHustler
+/.github/dependabot.yml @GanjobaHustler
+
+# Security policies and documentation
+/SECURITY.md @GanjobaHustler
+/CODEOWNERS @GanjobaHustler
+/SECURITY_BASELINE.md @GanjobaHustler
+/SECURITY_GAPS.md @GanjobaHustler
+
+# Security.txt file
+/.well-known/security.txt @GanjobaHustler
+/.well-known/ @GanjobaHustler
+
+# Package configuration files
+/package.json @GanjobaHustler
+/package-lock.json @GanjobaHustler

@@ -1,0 +1,7 @@
+Contact: security@hustleriq.com
+Contact: https://github.com/GanjobaHustler/HustlerIQ-High-ticket-sales-website/security/advisories/new
+Expires: 2025-12-31T23:59:59.000Z
+Acknowledgments: https://github.com/GanjobaHustler/HustlerIQ-High-ticket-sales-website/blob/main/SECURITY.md
+Policy: https://github.com/GanjobaHustler/HustlerIQ-High-ticket-sales-website/blob/main/SECURITY.md
+Preferred-Languages: en
+Canonical: https://hustleriq.com/.well-known/security.txt

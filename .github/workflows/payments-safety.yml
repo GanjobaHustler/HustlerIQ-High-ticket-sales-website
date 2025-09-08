@@ -1,0 +1,101 @@
+name: Payments Safety
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  payments-safety:
+    name: Payment Security Checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        with:
+          egress-policy: audit
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+
+      - name: Checkout repository
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      - name: Check HMAC Signature Verification
+        run: |
+          echo "🔍 Checking for HMAC signature verification in payment code..."
+          if ! grep -r "createHmac\|signature.*verification\|x-stripe-signature" src/; then
+            echo "❌ FAIL: No HMAC signature verification found in payment code paths"
+            echo "Justification: Payment webhooks must verify HMAC signatures to prevent tampering"
+            exit 1
+          fi
+          echo "✅ PASS: HMAC signature verification found"
+
+      - name: Check Idempotency Key Usage
+        run: |
+          echo "🔍 Checking for idempotency key usage in payment code..."
+          if ! grep -r "idempotency.*key\|idempotencyKey" src/; then
+            echo "❌ FAIL: No idempotency key usage found in payment code"
+            echo "Justification: Payment operations must use idempotency keys to prevent duplicate charges"
+            exit 1
+          fi
+          echo "✅ PASS: Idempotency key usage found"
+
+      - name: Check Replay Window Enforcement
+        run: |
+          echo "🔍 Checking for replay window enforcement (≤5 minutes)..."
+          if ! grep -r "timestamp.*5.*minute\|replay.*window\|5.*60.*1000" src/; then
+            echo "❌ FAIL: No replay window enforcement found (≤5 minutes required)"
+            echo "Justification: Payment requests must enforce a replay window to prevent replay attacks"
+            exit 1
+          fi
+          echo "✅ PASS: Replay window enforcement found"
+
+      - name: Check for PAN Collection Prevention
+        run: |
+          echo "🔍 Checking for prohibited PAN collection patterns..."
+          if grep -r "card_number\|cc-num\|paymentMethodData\|cardNumber\|credit.*card.*input\|cvv\|cvc" src/ public/ || grep -i "stripe\.elements.*card" src/; then
+            echo "❌ FAIL: Found potential PAN collection patterns"
+            echo "Justification: Direct PAN collection violates PCI DSS requirements"
+            echo "Found patterns:"
+            grep -r "card_number\|cc-num\|paymentMethodData\|cardNumber\|credit.*card.*input\|cvv\|cvc" src/ public/ || true
+            grep -i "stripe\.elements.*card" src/ || true
+            exit 1
+          fi
+          echo "✅ PASS: No prohibited PAN collection patterns found"
+
+      - name: Check Webhook Security Headers
+        run: |
+          echo "🔍 Checking for proper webhook security headers..."
+          if ! grep -r "x-stripe-signature\|webhook.*secret\|x-timestamp" src/; then
+            echo "❌ FAIL: Missing webhook security headers validation"
+            echo "Justification: Webhook endpoints must validate security headers"
+            exit 1
+          fi
+          echo "✅ PASS: Webhook security headers validation found"
+
+      - name: Generate Payment Security Report
+        run: |
+          echo "# Payment Security Analysis Report" > payment-security-report.md
+          echo "Generated: $(date)" >> payment-security-report.md
+          echo "" >> payment-security-report.md
+          echo "## Checks Performed" >> payment-security-report.md
+          echo "- ✅ HMAC signature verification" >> payment-security-report.md
+          echo "- ✅ Idempotency key usage" >> payment-security-report.md
+          echo "- ✅ Replay window enforcement (≤5 minutes)" >> payment-security-report.md
+          echo "- ✅ PAN collection prevention" >> payment-security-report.md
+          echo "- ✅ Webhook security headers" >> payment-security-report.md
+          echo "" >> payment-security-report.md
+          echo "## Status: ALL CHECKS PASSED ✅" >> payment-security-report.md
+          
+      - name: Upload Payment Security Report
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: payment-security-report
+          path: payment-security-report.md
