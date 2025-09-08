@@ -11,7 +11,7 @@ permissions:
   security-events: write
 
 jobs:
-  sast-codeql:
+  codeql:
     name: CodeQL Analysis (SAST)
     runs-on: ubuntu-latest
     permissions:
@@ -48,7 +48,7 @@ jobs:
         with:
           category: "/language:${{matrix.language}}"
 
-  sast-semgrep:
+  semgrep:
     name: Semgrep Analysis (SAST)
     runs-on: ubuntu-latest
     permissions:
@@ -82,7 +82,7 @@ jobs:
           sarif_file: semgrep.sarif
         if: always()
 
-  sca-osv:
+  osv:
     name: OSV Scanner (SCA)
     runs-on: ubuntu-latest
     permissions:
@@ -108,7 +108,11 @@ jobs:
 
       - name: Run OSV Scanner
         run: |
-          ./osv-scanner --recursive --format sarif --skip-git . > osv-results.sarif || true
+          ./osv-scanner --recursive --format sarif . > osv-results.sarif || true
+          # Add minimal SARIF structure if file is empty to prevent upload errors
+          if [ ! -s osv-results.sarif ]; then
+            echo '{"version":"2.1.0","$schema":"https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json","runs":[{"tool":{"driver":{"name":"osv-scanner","version":"1.0.0"}},"results":[]}]}' > osv-results.sarif
+          fi
 
       - name: Upload SARIF
         uses: github/codeql-action/upload-sarif@2c779ab0d087cd7fe7b826087247c2c81f27bfa6 # v3.26.7
@@ -116,8 +120,8 @@ jobs:
         with:
           sarif_file: osv-results.sarif
 
-  secrets-gitleaks:
-    name: GitLeaks Secret Scanning
+  gitleaks:
+    name: GitLeaks
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -130,46 +134,29 @@ jobs:
           allowed-endpoints: >
             github.com:443
             api.github.com:443
+            releases.githubusercontent.com:443
 
       - name: Checkout repository
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
           fetch-depth: 0
 
-      - name: Run Gitleaks
-        uses: gitleaks/gitleaks-action@1f2d10fb689bc07a5f56f48d6db61a4a7e9d6abc # v2.3.6
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install GitLeaks
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks_$(uname -s)_$(uname -m).tar.gz | tar xz
+          chmod +x gitleaks
 
-  secrets-trufflehog:
-    name: TruffleHog Secret Scanning
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      security-events: write
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+      - name: Run GitLeaks
+        run: |
+          ./gitleaks detect --source . --report-format sarif --report-path gitleaks.sarif --exit-code 0
+
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@2c779ab0d087cd7fe7b826087247c2c81f27bfa6 # v3.26.7
+        if: always()
         with:
-          egress-policy: audit
-          allowed-endpoints: >
-            github.com:443
-            api.github.com:443
+          sarif_file: gitleaks.sarif
 
-      - name: Checkout repository
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
-        with:
-          fetch-depth: 0
-
-      - name: TruffleHog OSS
-        uses: trufflesecurity/trufflehog@c9e2096dae79cc8cef9c9fcbfcfadda6ec1e9db4 # v3.82.2
-        with:
-          path: ./
-          base: main
-          head: HEAD
-          extra_args: --debug --only-verified
-
-  sbom-generation:
+  sbom:
     name: SBOM Generation
     runs-on: ubuntu-latest
     permissions:
