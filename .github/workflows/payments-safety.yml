@@ -83,16 +83,18 @@ jobs:
       - name: Generate Payment Security Report
         run: |
           echo "# Payment Security Analysis Report" > payment-security-report.md
-          echo "Generated: $(date)" >> payment-security-report.md
-          echo "" >> payment-security-report.md
-          echo "## Checks Performed" >> payment-security-report.md
-          echo "- ✅ HMAC signature verification" >> payment-security-report.md
-          echo "- ✅ Idempotency key usage" >> payment-security-report.md
-          echo "- ✅ Replay window enforcement (≤5 minutes)" >> payment-security-report.md
-          echo "- ✅ PAN collection prevention" >> payment-security-report.md
-          echo "- ✅ Webhook security headers" >> payment-security-report.md
-          echo "" >> payment-security-report.md
-          echo "## Status: ALL CHECKS PASSED ✅" >> payment-security-report.md
+          {
+            echo "Generated: $(date)"
+            echo ""
+            echo "## Checks Performed"
+            echo "- ✅ HMAC signature verification"
+            echo "- ✅ Idempotency key usage"
+            echo "- ✅ Replay window enforcement (≤5 minutes)"
+            echo "- ✅ PAN collection prevention"
+            echo "- ✅ Webhook security headers"
+            echo ""
+            echo "## Status: ALL CHECKS PASSED ✅"
+          } >> payment-security-report.md
           
       - name: Upload Payment Security Report
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
