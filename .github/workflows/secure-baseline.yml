@@ -109,9 +109,23 @@ jobs:
       - name: Run OSV Scanner
         run: |
           ./osv-scanner --recursive --format sarif . > osv-results.sarif || true
-          # Add minimal SARIF structure if file is empty to prevent upload errors
+          # Add minimal SARIF structure if file is empty
           if [ ! -s osv-results.sarif ]; then
-            echo '{"version":"2.1.0","$schema":"https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json","runs":[{"tool":{"driver":{"name":"osv-scanner","version":"1.0.0"}},"results":[]}]}' > osv-results.sarif
+            cat > osv-results.sarif << 'SARIF_EOF'
+{
+  "version": "2.1.0",
+  "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+  "runs": [{
+    "tool": {
+      "driver": {
+        "name": "osv-scanner",
+        "version": "1.0.0"
+      }
+    },
+    "results": []
+  }]
+}
+SARIF_EOF
           fi
 
       - name: Upload SARIF
@@ -143,7 +157,7 @@ jobs:
 
       - name: Install GitLeaks
         run: |
-          curl -sSfL https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks_$(uname -s)_$(uname -m).tar.gz | tar xz
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks_$(uname -s)_$(uname -m).tar.gz" | tar xz
           chmod +x gitleaks
 
       - name: Run GitLeaks

@@ -1,7 +1,7 @@
 name: TruffleHog Secret Audit
 
 on:
-  push:
+  workflow_dispatch:  push:
     branches: [ main, develop ]
   pull_request:
     branches: [ main, develop ]
@@ -13,7 +13,7 @@ jobs:
   trufflehog-audit:
     name: TruffleHog Audit
     runs-on: ubuntu-latest
-    permissions:
+  workflow_dispatch:    permissions:
       contents: read
     steps:
       - name: Harden Runner

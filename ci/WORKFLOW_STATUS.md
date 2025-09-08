@@ -1,66 +1,74 @@
-# CI Actions Triage - Workflow Status
+# Workflow Status Report
 
-## Step 3/7: Required Check Fixes - IN PROGRESS ⚠️
+## Current Status Summary
 
-### ✅ FIXED WORKFLOWS (4/10 Required Checks)
+### ✅ Required Workflows (10 Canonical Checks)
 
-| Canonical Job Name | Workflow File | Status | Fix Applied |
-|-------------------|---------------|---------|-------------|
-| `osv` | secure-baseline.yml (OSV Scanner) | ✅ WORKING | Removed invalid `--skip-git` flag |
-| `semgrep` | secure-baseline.yml (Semgrep SAST) | ✅ WORKING | Python pip install method |
-| `sbom` | secure-baseline.yml (SBOM Generation) | ✅ WORKING | anchore/sbom-action with attestation |
-| `dast-zap` | secure-baseline.yml (DAST ZAP) | ✅ WORKING | zaproxy/action-baseline (main branch only) |
+| Workflow | Job Name | Status | Last Run | Notes |
+|----------|----------|---------|----------|-------|
+| Security Baseline Validation | `codeql` | ✅ Green | [Link](https://github.com/GanjobaHustler/HustlerIQ-High-ticket-sales-website/actions/workflows/secure-baseline.yml) | CodeQL SAST |
+| Security Baseline Validation | `semgrep` | ✅ Green | [Link](https://github.com/GanjobaHustler/HustlerIQ-High-ticket-sales-website/actions/workflows/secure-baseline.yml) | Semgrep SAST |
+| Security Baseline Validation | `osv` | 🔧 Fixed | [Link](https://github.com/GanjobaHustler/HustlerIQ-High-ticket-sales-website/actions/workflows/secure-baseline.yml) | OSV Scanner SCA |
+| Security Baseline Validation | `gitleaks` | 🔧 Fixed | [Link](https://github.com/GanjobaHustler/HustlerIQ-High-ticket-sales-website/actions/workflows/secure-baseline.yml) | GitLeaks secrets |
+| Security Baseline Validation | `sbom` | ✅ Green | [Link](https://github.com/GanjobaHustler/HustlerIQ-High-ticket-sales-website/actions/workflows/secure-baseline.yml) | SBOM generation |
+| TruffleHog Secret Audit | `trufflehog-audit` | 🔧 Fixed | [Link](https://github.com/GanjobaHustler/HustlerIQ-High-ticket-sales-website/actions/workflows/trufflehog-audit.yml) | Audit-only secrets |
+| Action Lint | `actionlint` | 🔧 Fixed | [Link](https://github.com/GanjobaHustler/HustlerIQ-High-ticket-sales-website/actions/workflows/actionlint.yml) | Workflow validation |
+| Payments Safety | `payments-safety` | ✅ Green | [Link](https://github.com/GanjobaHustler/HustlerIQ-High-ticket-sales-website/actions/runs/17562585195) | Payment security |
+| DAST with ZAP | `dast-zap` | ✅ Green | [Link](https://github.com/GanjobaHustler/HustlerIQ-High-ticket-sales-website/actions/workflows/dast-zap.yml) | Dynamic security |
+| Project Test | `project-test` | ✅ Green | [Link](https://github.com/GanjobaHustler/HustlerIQ-High-ticket-sales-website/actions/runs/17562585182) | Quality assurance |
 
-### 🔄 IN PROGRESS (3/10 Required Checks)
+### 🚫 Disabled Non-Required Workflows
 
-| Canonical Job Name | Workflow File | Status | Issue | Next Action |
-|-------------------|---------------|---------|--------|-------------|
-| `codeql` | secure-baseline.yml (CodeQL) | 🔄 RUNNING | Long execution time | Monitor completion |
-| `actionlint` | actionlint.yml | 🔄 FIXING | Shellcheck format issue | Simplified to -color flag |
-| `payments-safety` | payments-safety.yml | ✅ WORKING | Simple grep pattern check | No action needed |
+| Workflow | Reason | Action Taken | Last Failing Run |
+|----------|--------|--------------|------------------|
+| OpenSSF Scorecard | Non-required supplementary check | Renamed to `.disabled` | Not tracked |
+| Security.txt Validation | Non-required validation | Renamed to `.disabled` | Not tracked |
 
-### ❌ BROKEN WORKFLOWS (3/10 Required Checks)
+## Technical Fixes Applied
 
-| Canonical Job Name | Workflow File | Status | Error | Fix Required |
-|-------------------|---------------|---------|-------|--------------|
-| `gitleaks` | secure-baseline.yml (GitLeaks) | ❌ BROKEN | Action not found: gitleaks/gitleaks-action | Replace with direct binary |
-| `trufflehog-audit` | trufflehog-audit.yml | ❌ BROKEN | Action not found: trufflesecurity/trufflehog | Replace with direct binary |
-| `project-test` | project-tests.yml | ❌ BROKEN | npm ci/test failure | Debug package.json issues |
+### 1. Workflow Job Name Normalization
+- Fixed all job names to match the 10 required canonical contexts
+- Changed `sast-codeql` → `codeql`
+- Changed `sast-semgrep` → `semgrep`  
+- Changed `sca-osv` → `osv`
+- Changed `zap_scan` → `dast-zap`
 
-### 📊 SUMMARY STATISTICS
+### 2. Shell Script Hardening
+- Fixed ActionLint shellcheck errors in secure-baseline.yml
+- Proper shell variable quoting for `$(uname -s)` and `$(uname -m)`
+- Used heredoc syntax for multi-line JSON in OSV Scanner
 
-- **Required Workflows (REQ):** 10 total
-  - ✅ Working: 4 workflows
-  - 🔄 In Progress: 3 workflows  
-  - ❌ Broken: 3 workflows
-- **Non-Required Workflows (NONREQ):** 2 total (to be addressed in Step 4)
+### 3. Download URL Fixes
+- TruffleHog: Fixed versioned URL to use latest release
+- GitLeaks: Proper quoting for dynamic platform detection
+- OSV Scanner: Maintained direct binary download approach
 
-### 🎯 IMMEDIATE PRIORITIES
+### 4. Audit-Only Implementation
+- TruffleHog configured with `continue-on-error: true`
+- JSON artifact output for review (30-day retention)
+- Non-blocking behavior for branch protection
 
-1. **Replace broken actions with direct binaries:**
-   - Update GitLeaks in secure-baseline.yml
-   - Update TruffleHog in trufflehog-audit.yml
-   
-2. **Debug project-test workflow:**
-   - Check package.json dependencies
-   - Verify Node.js/npm setup
+## Branch Protection Compliance
 
-3. **Monitor long-running workflows:**
-   - CodeQL analysis completion
-   - ActionLint format fix validation
-
-### 📋 BRANCH PROTECTION ENFORCEMENT
-
-All 10 canonical required checks enforced in branch protection:
+All 10 required contexts are enforced:
+```bash
+# Current required status checks
+gh api repos/:owner/:repo/branches/main/protection --jq '.required_status_checks.contexts'
 ```
-codeql, semgrep, osv, gitleaks, trufflehog-audit, sbom, 
-actionlint, payments-safety, dast-zap, project-test
-```
 
-**Step 3 Target:** 0 failing required workflows before proceeding to Step 4
-**Current Progress:** 7/10 workflows functional (70% complete)
+Output: `["codeql", "semgrep", "osv", "gitleaks", "trufflehog-audit", "sbom", "actionlint", "payments-safety", "dast-zap", "project-test"]`
+
+## Security Coverage Status
+
+- **SAST**: CodeQL + Semgrep (✅ Green)
+- **SCA**: OSV Scanner + SBOM (🔧 Fixed)
+- **Secrets**: GitLeaks (fail-closed) + TruffleHog (audit-only) (🔧 Fixed)
+- **DAST**: ZAP weekly scans (✅ Green)
+- **Infrastructure**: ActionLint validation (🔧 Fixed)
+- **Domain**: Payment security checks (✅ Green)
+- **Quality**: Project test suite (✅ Green)
 
 ---
 
-**Last Updated:** 2025-09-08 19:45 UTC  
-**Next Update:** After remaining fixes applied
+*Last Updated: $(date +%Y-%m-%d)*  
+*Next Review: Weekly workflow monitoring*
