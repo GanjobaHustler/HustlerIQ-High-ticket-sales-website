@@ -178,13 +178,13 @@ jobs:
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
       - name: Generate SBOM (CycloneDX)
-        uses: anchore/sbom-action@d94f46e13c6c62f59525ac9a1e147a99dc0b9bf5 # v0.17.2
+        uses: anchore/sbom-action@da167eac915b4e86f08b264dbdbc867b61be6f0c # v0.17.2
         with:
           format: cyclonedx-json
           output-file: sbom-cyclonedx.json
 
       - name: Generate SBOM (SPDX)
-        uses: anchore/sbom-action@d94f46e13c6c62f59525ac9a1e147a99dc0b9bf5 # v0.17.2
+        uses: anchore/sbom-action@da167eac915b4e86f08b264dbdbc867b61be6f0c # v0.17.2
         with:
           format: spdx-json
           output-file: sbom-spdx.json
