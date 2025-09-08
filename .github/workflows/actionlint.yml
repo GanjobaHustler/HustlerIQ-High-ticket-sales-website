@@ -1,0 +1,51 @@
+name: Action Lint
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/**'
+
+permissions:
+  contents: read
+
+jobs:
+  actionlint:
+    name: Action Lint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        with:
+          egress-policy: audit
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            objects.githubusercontent.com:443
+
+      - name: Checkout repository
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      - name: Run ActionLint
+        uses: raven-actions/actionlint@14dcc2b14df4ed1fde2bec08b2b5dd0a4699c94e # v1.0.2
+        with:
+          reporter: github-pr-review
+          level: error
+          filter_mode: nofilter
+
+      - name: Create ActionLint Summary
+        if: always()
+        run: |
+          echo "ActionLint validation completed at $(date)" > actionlint-report.txt
+          echo "Status: Analysis Complete" >> actionlint-report.txt
+
+      - name: Upload ActionLint Report
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
+        with:
+          name: actionlint-report
+          path: actionlint-report.txt
+        if: always()
