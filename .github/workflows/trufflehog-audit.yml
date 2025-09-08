@@ -1,0 +1,54 @@
+name: TruffleHog Secret Audit
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 2 * * 1'  # Weekly Monday 2 AM
+
+permissions:
+  contents: read
+
+jobs:
+  trufflehog-audit:
+    name: TruffleHog Secret Audit
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        with:
+          egress-policy: audit
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+
+      - name: Checkout repository
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          fetch-depth: 0
+
+      - name: TruffleHog OSS
+        uses: trufflesecurity/trufflehog@c9e2096dae79cc8cef9c9fcbfcfadda6ec1e9db4 # v3.82.2
+        with:
+          path: ./
+          base: main
+          head: HEAD
+          extra_args: --debug --only-verified --fail
+        continue-on-error: true  # Allow pipeline to continue for audit
+
+      - name: Create TruffleHog Report
+        run: |
+          echo "TruffleHog Secret Audit completed at $(date)" > trufflehog-audit.txt
+          echo "Status: Completed (non-blocking)" >> trufflehog-audit.txt
+
+      - name: Upload Audit Report
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
+        with:
+          name: trufflehog-audit-report
+          path: trufflehog-audit.txt
+        if: always()

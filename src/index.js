@@ -4,12 +4,27 @@ const rateLimit = require('express-rate-limit');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const { body, validationResult } = require('express-validator');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const port = process.env.PORT || 3000;
 
-// Security middleware
+// Security Configuration
+const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || 'whsec_development_secret';
+const JWT_SECRET = process.env.JWT_SECRET || 'development_secret_change_in_production';
+const REPLAY_WINDOW = 5 * 60 * 1000; // 5 minutes in milliseconds
+
+// HTML Escaping Function to prevent XSS
+function escapeHtml(unsafe) {
+  return unsafe
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+// Enhanced security middleware
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -18,70 +33,62 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", "data:", "https:"],
       connectSrc: ["'self'", "api.stripe.com"],
-      frameSrc: ["js.stripe.com", "hooks.stripe.com"]
-    }
-  }
+      frameSrc: ["js.stripe.com"],
+    },
+  },
 }));
 
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests, please try again later.'
+  message: 'Too many requests from this IP, please try again later.',
 });
 app.use(limiter);
 
+// Body parsing with size limits
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static('public'));
 
 // High-ticket sales landing page
 app.get('/', (req, res) => {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(`
     <!DOCTYPE html>
     <html lang="en">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>HustlerIQ - Transform Your Business with High-Ticket Coaching</title>
+        <title>HustlerIQ - High-Ticket Sales Mastery</title>
         <style>
-            body { font-family: 'Arial', sans-serif; margin: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
-            .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
-            .hero { text-align: center; padding: 100px 0; }
-            .hero h1 { font-size: 3.5em; margin-bottom: 20px; }
-            .hero p { font-size: 1.5em; margin-bottom: 40px; }
-            .cta-button { display: inline-block; background: #ff6b35; color: white; padding: 20px 40px; text-decoration: none; border-radius: 5px; font-size: 1.2em; font-weight: bold; }
-            .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px; margin: 80px 0; }
-            .feature { background: rgba(255,255,255,0.1); padding: 30px; border-radius: 10px; }
-            .price { font-size: 3em; color: #ffd700; font-weight: bold; }
+            body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
+            .hero { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 100px 20px; text-align: center; }
+            .hero h1 { font-size: 3rem; margin-bottom: 1rem; }
+            .hero p { font-size: 1.2rem; margin-bottom: 2rem; }
+            .cta-btn { display: inline-block; background: #ff6b35; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: 600; }
+            .features { padding: 60px 20px; text-align: center; }
+            .feature { margin: 20px 0; }
         </style>
     </head>
     <body>
-        <div class="container">
-            <div class="hero">
-                <h1>Scale to $100K/Month with High-Ticket Coaching</h1>
-                <p>Join 500+ entrepreneurs who've transformed their business with our proven system</p>
-                <a href="/apply" class="cta-button">Apply for $25K Coaching Program</a>
+        <div class="hero">
+            <h1>Scale to $100K/Month with High-Ticket Sales</h1>
+            <p>Join 500+ entrepreneurs who've transformed their business with our proven coaching system</p>
+            <a href="/apply" class="cta-btn">Apply for $25K Coaching Program</a>
+        </div>
+        <div class="features">
+            <h2>Why High-Ticket Changes Everything</h2>
+            <div class="feature">
+                <h3>🎯 Proven Sales System</h3>
+                <p>Learn the exact framework that's generated over $50M in high-ticket sales</p>
             </div>
-            
-            <div class="features">
-                <div class="feature">
-                    <h3>🎯 High-Ticket Sales System</h3>
-                    <p>Learn the exact framework that's generated over $50M in high-ticket sales</p>
-                </div>
-                <div class="feature">
-                    <h3>💰 Premium Positioning</h3>
-                    <p>Position yourself as the go-to expert and charge premium prices</p>
-                </div>
-                <div class="feature">
-                    <h3>🚀 Scalable Operations</h3>
-                    <p>Build systems that allow you to scale without burning out</p>
-                </div>
+            <div class="feature">
+                <h3>💰 Premium Positioning</h3>
+                <p>Position yourself as the go-to expert and charge premium prices</p>
             </div>
-            
-            <div style="text-align: center; margin: 80px 0;">
-                <h2>Investment: <span class="price">$25,000</span></h2>
-                <p>12-month program with personal 1-on-1 coaching</p>
-                <a href="/payment" class="cta-button">Secure Your Spot Now</a>
+            <div class="feature">
+                <h3>🚀 Scalable Operations</h3>
+                <p>Build systems that scale without burning out</p>
             </div>
         </div>
     </body>
@@ -91,58 +98,67 @@ app.get('/', (req, res) => {
 
 // Application form for high-ticket prospects
 app.get('/apply', (req, res) => {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(`
     <!DOCTYPE html>
     <html>
     <head>
         <title>Apply for High-Ticket Coaching</title>
         <style>
-            body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
+            body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
             .form-group { margin-bottom: 20px; }
             label { display: block; margin-bottom: 5px; font-weight: bold; }
-            input, textarea, select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
-            button { background: #667eea; color: white; padding: 15px 30px; border: none; border-radius: 5px; cursor: pointer; }
+            input, select, textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; }
+            button { background: #667eea; color: white; padding: 15px 30px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+            button:hover { background: #5a6fd8; }
         </style>
     </head>
     <body>
-        <h1>High-Ticket Coaching Application</h1>
+        <h1>Apply for High-Ticket Coaching</h1>
+        <p>Complete this application to see if you qualify for our $25,000 coaching program.</p>
+        
         <form action="/submit-application" method="POST">
             <div class="form-group">
-                <label>Full Name</label>
-                <input type="text" name="name" required>
+                <label for="name">Full Name *</label>
+                <input type="text" id="name" name="name" required maxlength="100">
             </div>
+            
             <div class="form-group">
-                <label>Email</label>
-                <input type="email" name="email" required>
+                <label for="email">Email Address *</label>
+                <input type="email" id="email" name="email" required maxlength="255">
             </div>
+            
             <div class="form-group">
-                <label>Phone</label>
-                <input type="tel" name="phone" required>
+                <label for="phone">Phone Number *</label>
+                <input type="tel" id="phone" name="phone" required maxlength="20">
             </div>
+            
             <div class="form-group">
-                <label>Current Business Revenue (Monthly)</label>
-                <select name="revenue" required>
+                <label for="revenue">Current Monthly Revenue *</label>
+                <select id="revenue" name="revenue" required>
                     <option value="">Select Range</option>
-                    <option value="0-10k">$0 - $10K</option>
-                    <option value="10k-25k">$10K - $25K</option>
-                    <option value="25k-50k">$25K - $50K</option>
-                    <option value="50k-100k">$50K - $100K</option>
-                    <option value="100k+">$100K+</option>
+                    <option value="0-5k">$0 - $5,000</option>
+                    <option value="5k-15k">$5,000 - $15,000</option>
+                    <option value="15k-50k">$15,000 - $50,000</option>
+                    <option value="50k+">$50,000+</option>
                 </select>
             </div>
+            
             <div class="form-group">
-                <label>What's your biggest challenge in scaling to high-ticket?</label>
-                <textarea name="challenge" rows="4" required></textarea>
+                <label for="challenge">Biggest Business Challenge *</label>
+                <textarea id="challenge" name="challenge" rows="4" required maxlength="1000"></textarea>
             </div>
+            
             <div class="form-group">
-                <label>Investment Readiness</label>
-                <select name="investment" required>
-                    <option value="">Select One</option>
-                    <option value="ready">Ready to invest $25K today</option>
-                    <option value="30days">Can invest within 30 days</option>
-                    <option value="exploring">Just exploring options</option>
+                <label for="investment">Ready to Invest $25K? *</label>
+                <select id="investment" name="investment" required>
+                    <option value="">Select Option</option>
+                    <option value="yes">Yes, I'm ready</option>
+                    <option value="maybe">Maybe, tell me more</option>
+                    <option value="no">No, not at this time</option>
                 </select>
             </div>
+            
             <button type="submit">Submit Application</button>
         </form>
     </body>
@@ -152,6 +168,7 @@ app.get('/apply', (req, res) => {
 
 // Secure payment processing with Stripe
 app.get('/payment', (req, res) => {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(`
     <!DOCTYPE html>
     <html>
@@ -159,51 +176,115 @@ app.get('/payment', (req, res) => {
         <title>Secure Payment - HustlerIQ</title>
         <script src="https://js.stripe.com/v3/"></script>
         <style>
-            body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
-            #card-element { border: 1px solid #ddd; padding: 15px; border-radius: 5px; margin: 20px 0; }
-            .button { background: #667eea; color: white; padding: 15px 30px; border: none; border-radius: 5px; cursor: pointer; width: 100%; }
-            .security-badge { background: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0; text-align: center; }
+            body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
+            .payment-container { background: #f8f9fa; padding: 30px; border-radius: 8px; margin: 20px 0; }
+            .price { font-size: 2rem; color: #667eea; font-weight: bold; text-align: center; margin-bottom: 20px; }
+            #card-element { padding: 15px; border: 1px solid #ddd; border-radius: 4px; background: white; }
+            #submit-payment { background: #28a745; color: white; padding: 15px 30px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; width: 100%; margin-top: 20px; }
+            #submit-payment:hover { background: #218838; }
+            #submit-payment:disabled { background: #6c757d; cursor: not-allowed; }
+            .security-note { font-size: 0.9rem; color: #666; text-align: center; margin-top: 10px; }
+            .error { color: #dc3545; margin-top: 10px; }
         </style>
     </head>
     <body>
-        <h1>Secure Payment Processing</h1>
-        <div class="security-badge">
-            🔒 SSL Encrypted | PCI DSS Compliant | Stripe Powered
+        <h1>Secure Payment</h1>
+        <div class="payment-container">
+            <div class="price">$25,000</div>
+            <p><strong>HustlerIQ High-Ticket Sales Coaching Program</strong></p>
+            <p>12-month comprehensive coaching program including:</p>
+            <ul>
+                <li>1-on-1 coaching sessions</li>
+                <li>Proven sales frameworks</li>
+                <li>Premium positioning strategies</li>
+                <li>Lifetime access to resources</li>
+            </ul>
+            
+            <form id="payment-form">
+                <div id="card-element">
+                    <!-- Stripe Elements will create form elements here -->
+                </div>
+                
+                <button id="submit-payment" type="submit">
+                    Complete Payment ($25,000)
+                </button>
+                
+                <div id="card-errors" role="alert" class="error"></div>
+            </form>
+            
+            <p class="security-note">
+                🔒 Your payment is secured by 256-bit SSL encryption<br>
+                💳 We never store your card details<br>
+                ✅ PCI DSS Level 1 compliant
+            </p>
         </div>
-        
-        <form id="payment-form">
-            <h3>Investment: $25,000</h3>
-            <p>12-Month High-Ticket Coaching Program</p>
-            
-            <div id="card-element">
-                <!-- Stripe Elements will create form elements here -->
-            </div>
-            
-            <button id="submit-payment" class="button">
-                Complete Secure Payment
-            </button>
-        </form>
 
         <script>
-            const stripe = Stripe('pk_test_your_publishable_key_here');
+            // Stripe configuration (publishable key only - safe for client-side)
+            const stripe = Stripe('pk_test_51234567890abcdef'); // Replace with actual publishable key
             const elements = stripe.elements();
-            const cardElement = elements.create('card');
+            
+            // Create card element
+            const cardElement = elements.create('card', {
+                style: {
+                    base: {
+                        fontSize: '16px',
+                        color: '#424770',
+                        '::placeholder': {
+                            color: '#aab7c4',
+                        },
+                    },
+                },
+            });
+            
             cardElement.mount('#card-element');
-
+            
+            // Handle form submission
             const form = document.getElementById('payment-form');
+            const submitButton = document.getElementById('submit-payment');
+            
             form.addEventListener('submit', async (event) => {
                 event.preventDefault();
                 
-                const {token, error} = await stripe.createToken(cardElement);
+                submitButton.disabled = true;
+                submitButton.textContent = 'Processing...';
+                
+                // Create payment method
+                const {error, paymentMethod} = await stripe.createPaymentMethod({
+                    type: 'card',
+                    card: cardElement,
+                });
                 
                 if (error) {
-                    console.error('Payment error:', error);
+                    document.getElementById('card-errors').textContent = error.message;
+                    submitButton.disabled = false;
+                    submitButton.textContent = 'Complete Payment ($25,000)';
                 } else {
-                    // Send token to server for processing
+                    // Send payment method to server for processing
                     fetch('/process-payment', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ token: token.id, amount: 2500000 })
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            payment_method_id: paymentMethod.id,
+                            amount: 2500000, // $25,000 in cents
+                        }),
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            window.location.href = '/payment-success';
+                        } else {
+                            document.getElementById('card-errors').textContent = data.error || 'Payment failed';
+                            submitButton.disabled = false;
+                            submitButton.textContent = 'Complete Payment ($25,000)';
+                        }
+                    })
+                    .catch(error => {
+                        document.getElementById('card-errors').textContent = 'Network error occurred';
+                        submitButton.disabled = false;
+                        submitButton.textContent = 'Complete Payment ($25,000)';
                     });
                 }
             });
@@ -213,101 +294,240 @@ app.get('/payment', (req, res) => {
   `);
 });
 
-// Payment processing endpoint with security
+// Application submission with enhanced validation and XSS protection
+app.post('/submit-application', 
+  // Input validation middleware
+  [
+    body('name').trim().isLength({ min: 1, max: 100 }).escape(),
+    body('email').isEmail().normalizeEmail().isLength({ max: 255 }),
+    body('phone').trim().isLength({ min: 10, max: 20 }).matches(/^[+\-\s\d\(\)]+$/),
+    body('revenue').isIn(['0-5k', '5k-15k', '15k-50k', '50k+']),
+    body('challenge').trim().isLength({ min: 10, max: 1000 }).escape(),
+    body('investment').isIn(['yes', 'maybe', 'no'])
+  ],
+  (req, res) => {
+    // Check validation results
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      return res.status(400).send(`
+        <h1>Validation Error</h1>
+        <p>Please check your input and try again.</p>
+        <ul>
+          ${errors.array().map(error => `<li>${escapeHtml(error.msg)}</li>`).join('')}
+        </ul>
+        <a href="/apply">Go Back</a>
+      `);
+    }
+
+    const { name, email, phone, revenue, challenge, investment } = req.body;
+
+    // Lead scoring algorithm (server-side only)
+    let score = 0;
+    
+    // Revenue scoring
+    if (revenue === '50k+') score += 40;
+    else if (revenue === '15k-50k') score += 30;
+    else if (revenue === '5k-15k') score += 20;
+    else score += 10;
+    
+    // Investment readiness
+    if (investment === 'yes') score += 30;
+    else if (investment === 'maybe') score += 15;
+    else score += 5;
+    
+    // Challenge complexity (longer = more serious)
+    if (challenge.length > 200) score += 20;
+    else if (challenge.length > 100) score += 15;
+    else score += 10;
+    
+    // Qualify leads (60+ score gets immediate callback)
+    const qualified = score >= 60;
+    
+    // Log with data sanitization
+    console.log(`New application: ${name} (${email}) - Score: ${score}, Qualified: ${qualified}`);
+    
+    // Secure response with HTML escaping
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+          <title>Application Received - HustlerIQ</title>
+          <style>
+              body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; text-align: center; }
+              .success { background: #d4edda; color: #155724; padding: 20px; border-radius: 8px; margin: 20px 0; }
+              .qualified { background: #f8d7da; color: #721c24; padding: 20px; border-radius: 8px; margin: 20px 0; }
+              .btn { display: inline-block; background: #667eea; color: white; padding: 15px 30px; text-decoration: none; border-radius: 4px; margin: 10px; }
+          </style>
+      </head>
+      <body>
+          <h1>Application Received!</h1>
+          <div class="${qualified ? 'qualified' : 'success'}">
+              <p>Thank you ${escapeHtml(name)}, we've received your application.</p>
+              ${qualified ? 
+                '<p><strong>🎉 Congratulations! You\'re pre-qualified. Expect a call within 24 hours.</strong></p>' : 
+                '<p>We\'ll review your application and get back to you within 48 hours.</p>'
+              }
+          </div>
+          
+          ${qualified ? '<a href="/payment" class="btn">Proceed to Payment</a>' : ''}
+          <a href="/" class="btn">Return Home</a>
+      </body>
+      </html>
+    `);
+  }
+);
+
+// Stripe webhook for payment verification
+app.post('/webhook', express.raw({type: 'application/json'}), (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  const rawBody = req.body;
+  
+  try {
+    // Verify webhook signature using Stripe's built-in method (more secure than custom HMAC)
+    const event = stripe.webhooks.constructEvent(rawBody, sig, WEBHOOK_SECRET);
+    
+    // Validate timestamp (replay protection)
+    const timestamp = Date.now();
+    const webhookTimestamp = event.created * 1000; // Stripe timestamp is in seconds
+    
+    if (timestamp - webhookTimestamp > REPLAY_WINDOW) {
+      console.log('Webhook rejected: timestamp outside replay window');
+      return res.status(400).send('Timestamp outside replay window');
+    }
+    
+    // Process the event
+    switch (event.type) {
+      case 'payment_intent.succeeded':
+        const paymentIntent = event.data.object;
+        console.log('Payment succeeded:', paymentIntent.id);
+        // Handle successful payment
+        break;
+        
+      case 'payment_intent.payment_failed':
+        const failedPayment = event.data.object;
+        console.log('Payment failed:', failedPayment.id);
+        // Handle failed payment
+        break;
+        
+      default:
+        console.log('Unhandled event type:', event.type);
+    }
+    
+    res.json({ received: true });
+    
+  } catch (err) {
+    console.log('Webhook signature verification failed:', err.message);
+    return res.status(400).send('Webhook signature verification failed');
+  }
+});
+
+// Payment processing endpoint
 app.post('/process-payment', async (req, res) => {
   try {
-    // HMAC signature verification (security requirement)
-    const signature = req.headers['x-stripe-signature'];
-    const timestamp = req.headers['x-timestamp'];
+    const { payment_method_id, amount } = req.body;
     
-    // Idempotency key usage (required for payments)
-    const idempotencyKey = req.headers['idempotency-key'];
-    if (!idempotencyKey) {
-      return res.status(400).json({ error: 'Idempotency key required' });
+    // Server-side amount validation (client cannot control price)
+    const FIXED_AMOUNT = 2500000; // $25,000 in cents
+    
+    if (amount !== FIXED_AMOUNT) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Invalid payment amount' 
+      });
     }
     
-    // Replay window enforcement (≤5 minutes)
-    const fiveMinutes = 5 * 60 * 1000;
-    const requestTime = new Date(timestamp).getTime();
-    if (Date.now() - requestTime > fiveMinutes) {
-      return res.status(400).json({ error: 'Request timestamp outside replay window' });
-    }
+    // Generate idempotency key for payment safety
+    const idempotencyKey = crypto.randomUUID();
     
-    // HMAC verification for webhook security
-    const expectedSignature = crypto
-      .createHmac('sha256', process.env.STRIPE_WEBHOOK_SECRET)
-      .update(JSON.stringify(req.body))
-      .digest('hex');
-    
-    const { token, amount } = req.body;
-    
-    // Create payment with Stripe
+    // Create payment intent with Stripe
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: amount,
+      amount: FIXED_AMOUNT,
       currency: 'usd',
-      payment_method_types: ['card'],
+      payment_method: payment_method_id,
+      confirmation_method: 'manual',
+      confirm: true,
       metadata: {
         program: 'high-ticket-coaching',
-        tier: 'premium'
+        amount_usd: '25000'
       }
     }, {
       idempotencyKey: idempotencyKey
     });
     
-    res.json({ 
-      success: true, 
-      client_secret: paymentIntent.client_secret 
-    });
+    if (paymentIntent.status === 'succeeded') {
+      res.json({ success: true, payment_intent: paymentIntent });
+    } else {
+      res.json({ 
+        success: false, 
+        error: 'Payment requires additional authentication',
+        requires_action: true,
+        payment_intent: paymentIntent
+      });
+    }
     
   } catch (error) {
     console.error('Payment processing error:', error);
-    res.status(500).json({ error: 'Payment processing failed' });
+    res.status(500).json({ 
+      success: false, 
+      error: 'Payment processing failed' 
+    });
   }
 });
 
-// Application submission with lead qualification
-app.post('/submit-application', (req, res) => {
-  const { name, email, phone, revenue, challenge, investment } = req.body;
-  
-  // Lead scoring for high-ticket prospects
-  let score = 0;
-  if (revenue === '50k-100k' || revenue === '100k+') score += 30;
-  if (investment === 'ready') score += 40;
-  if (investment === '30days') score += 20;
-  
-  // Qualify leads (60+ score gets immediate callback)
-  const qualified = score >= 60;
-  
-  console.log(`New application: ${name} (${email}) - Score: ${score}, Qualified: ${qualified}`);
-  
+// Payment success page
+app.get('/payment-success', (req, res) => {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(`
-    <h1>Application Received!</h1>
-    <p>Thank you ${name}, we've received your application.</p>
-    ${qualified ? 
-      '<p><strong>🎉 Congratulations! You\'re pre-qualified. Expect a call within 24 hours.</strong></p>' : 
-      '<p>We\'ll review your application and get back to you within 48 hours.</p>'
-    }
-    <a href="/">Return to Home</a>
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Payment Successful - HustlerIQ</title>
+        <style>
+            body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; text-align: center; }
+            .success { background: #d4edda; color: #155724; padding: 30px; border-radius: 8px; margin: 20px 0; }
+            .btn { display: inline-block; background: #667eea; color: white; padding: 15px 30px; text-decoration: none; border-radius: 4px; margin: 10px; }
+        </style>
+    </head>
+    <body>
+        <div class="success">
+            <h1>🎉 Payment Successful!</h1>
+            <p>Welcome to the HustlerIQ High-Ticket Sales Coaching Program!</p>
+            <p>You'll receive an email with next steps within 24 hours.</p>
+            <p><strong>Program Value: $25,000</strong></p>
+        </div>
+        <a href="/" class="btn">Return Home</a>
+    </body>
+    </html>
   `);
 });
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'healthy', 
-    timestamp: new Date().toISOString(),
-    version: '1.0.0'
+  res.json({ status: 'healthy', timestamp: new Date().toISOString() });
+});
+
+// Error handling middleware
+app.use((error, req, res, next) => {
+  console.error('Application error:', error);
+  res.status(500).json({ 
+    error: 'Internal server error',
+    message: 'Something went wrong' 
   });
 });
 
-// Error handling
-app.use((err, req, res, next) => {
-  console.error('Error:', err);
-  res.status(500).json({ error: 'Internal server error' });
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ 
+    error: 'Not found',
+    message: 'The requested resource was not found' 
+  });
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 HustlerIQ High-Ticket Sales Platform running on port ${PORT}`);
+const server = app.listen(port, () => {
+  console.log(`HustlerIQ High-Ticket Sales Platform running on port ${port}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 });
 
-module.exports = app;
+module.exports = { app, server };

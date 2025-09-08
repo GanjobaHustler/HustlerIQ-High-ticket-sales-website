@@ -94,6 +94,12 @@
             margin: 40px 0; 
             border-left: 5px solid #28a745; 
         }
+        .security-badges {
+            text-align: center;
+            margin: 20px 0;
+            font-size: 0.9rem;
+            color: #666;
+        }
     </style>
 </head>
 <body>
@@ -154,15 +160,22 @@
             </div>
             
             <a href="/payment" class="cta-btn" style="font-size: 1.2rem; padding: 20px 40px;">Secure Your Spot Now</a>
-            <p style="margin-top: 20px; color: #666;">🔒 SSL Encrypted | PCI Compliant | Stripe Powered</p>
+            
+            <div class="security-badges">
+                <p>🔒 SSL Encrypted | PCI Compliant | Stripe Powered</p>
+                <p>✅ Bank-Level Security | 256-bit Encryption | Zero Data Storage</p>
+            </div>
         </div>
     </section>
 
     <footer style="background: #2c3e50; color: white; padding: 40px 0; text-align: center;">
         <div class="container">
-            <p>&copy; 2025 HustlerIQ. All rights reserved. | Privacy Policy | Terms of Service</p>
+            <p>&copy; 2025 HustlerIQ. All rights reserved. | <a href="/.well-known/security.txt" style="color: #fff;">Security Policy</a> | Privacy Policy | Terms of Service</p>
             <p style="margin-top: 10px;">Built for high-ticket entrepreneurs who demand the best.</p>
         </div>
     </footer>
+
+    <!-- No external scripts - all styles are inline for security -->
+    <!-- This eliminates the need for external CDN resources and SRI considerations -->
 </body>
 </html>
